@@ -1,6 +1,5 @@
  
 #include <IRremote.h>  //including infrared remote header file  
-\
 #define RED 0xC110
 #define GREEN 0x74110
 #define BLUE 0x8C110
@@ -15,9 +14,11 @@ int selected = 0;
 int MAX_STEPS = 255;
 int MIN_STEPS = 0;
 int bright[] = {100, 10, 255};
-int steps = 5;
+int manualIntensitySteps = 5;
+int transitionDelay = 5;
 bool autometic = false;
 long int receivedCode = 0;
+
 
 IRrecv irrecv(RECV_PIN);     
 decode_results results;  
@@ -75,12 +76,13 @@ void interpretCode(long int code){
         case FUNCTION:
           autometic = true;
           receivedCode = 0;
+          delay(100);   //to skip simultainious button press;
           break;
   
         case UP:
          
           Serial.print("Intensity : ");
-          bright[selected] += steps;
+          bright[selected] += manualIntensitySteps;
           if( bright[selected] > MAX_STEPS) {
              bright[selected] = MAX_STEPS;
              blinkSelected(3, 0);
@@ -91,7 +93,7 @@ void interpretCode(long int code){
   
          case DOWN:
           Serial.print("Intensity : ");
-          bright[selected] -= steps;
+          bright[selected] -= manualIntensitySteps;
           if( bright[selected] < MIN_STEPS) {
              bright[selected] = MIN_STEPS;
              blinkSelected(2, 0);
@@ -177,7 +179,7 @@ void displayRandomColor(){
      randomColor[i] = rand()%255;
      }
   }
-  transitionTo(randomColor, 1);
+  transitionTo(randomColor, 1, transitionDelay);
 }
 
 void setup()     
@@ -205,6 +207,7 @@ void loop()
     interpretCode(receivedCode);
     Serial.print("RECEIVED ");
     Serial.println(receivedCode);
+    
     irrecv.resume();
   }
   if(autometic){
