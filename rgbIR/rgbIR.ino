@@ -6,24 +6,31 @@
 #define DOWN 0x640C   
 #define UP 0x240C  
 #define FUNCTION 0x4B0D
-
+#define POWER 0x540C
 
 int RECV_PIN = 11;
 int RGB_PIN[] = {9, 6, 10};   
 int selected = 0;
-int MAX_STEPS = 255;
-int MIN_STEPS = 0;
-int bright[] = {100, 10, 255};
+const int MAX_STEPS = 255;
+const int MIN_STEPS = 0;
+const int MAX_TRANSITION_DELAY_STEPS = 20;
+const int POWERON_STATUS[] = {0, 150, 0};
+const int POWEROFF_STATUS[] = {50, 50, 50};
+const int IDLE_STATUS[] ={0,0,0};
+int bright[] = {0, 0, 0};
 int manualIntensitySteps = 5;
 int transitionDelay = 5;
-bool autometic = false;
 long int receivedCode = 0;
-
+bool autometic = false;
+bool powerOn = false;
 
 IRrecv irrecv(RECV_PIN);     
 decode_results results;  
 
-//int blinkDelay = 1;
+void blinkSelected(int times, int blinkDelay);
+void displayRandomColor();
+void interpretCode(long int code);
+void transitionTo(int rgb[], int stepsMultiplier, int transitionDelay);
 
 
 void blinkSelected(int times, int blinkDelay){
@@ -50,60 +57,101 @@ void blinkSelected(int times, int blinkDelay){
 
 void interpretCode(long int code){
 
-    if(code == FUNCTION && autometic){
-      autometic = false;
-    }
-    else if (!autometic){
-      switch(code){
-        case RED:
-          selected = 0;
-          blinkSelected(1, 1);
-          Serial.println("SELECTED RED:");
-          break;
-          
-        case GREEN:
-          selected = 1;
-          blinkSelected(1, 1);
-          Serial.println("SELECTED GREEN:");
-          break;
-  
-        case BLUE:
-          selected = 2;
-          blinkSelected(1, 1);
-          Serial.println("SELECTED BLUE:");
-          break;
-
-        case FUNCTION:
-          autometic = true;
-          receivedCode = 0;
-          delay(100);   //to skip simultainious button press;
-          break;
-  
-        case UP:
-         
-          Serial.print("Intensity : ");
-          bright[selected] += manualIntensitySteps;
-          if( bright[selected] > MAX_STEPS) {
-             bright[selected] = MAX_STEPS;
-             blinkSelected(3, 0);
+      if(!powerOn){
+        if(code == POWER){
+          delay(200);
+          powerOn = true;
+          Serial.println("Power on");
+          transitionTo(POWERON_STATUS, 1, 1);
+        }else{
+          return;
+        }
+      }
+      else if(powerOn){
+        if(code == POWER){
+          powerOn = false;
+          autometic = false;
+          Serial.println("Power off");
+          transitionTo(IDLE_STATUS, 1, 1);
+          delay(1500);
+        }
+        else if(autometic){
+          switch(code){
+            
+            case FUNCTION:
+              autometic = false;
+              break;
+            
+            case UP:
+              transitionDelay ++;
+              if(transitionDelay > MAX_TRANSITION_DELAY_STEPS){
+                transitionDelay = MAX_TRANSITION_DELAY_STEPS;
+              }
+              Serial.print("transition Delay: ");
+              Serial.println(transitionDelay);
+              break;
+    
+            case DOWN:
+              transitionDelay --;
+              if(transitionDelay < 1){
+                transitionDelay = 1;
+              }
+              Serial.print("transition Delay: ");
+              Serial.println(transitionDelay);
+              break;
           }
-          Serial.println(bright[selected]);
-          analogWrite(RGB_PIN[selected], bright[selected]);
-          break;
-  
-         case DOWN:
-          Serial.print("Intensity : ");
-          bright[selected] -= manualIntensitySteps;
-          if( bright[selected] < MIN_STEPS) {
-             bright[selected] = MIN_STEPS;
-             blinkSelected(2, 0);
-          }
-          Serial.println(bright[selected]);
-          analogWrite(RGB_PIN[selected], bright[selected]);
-          break;
+        }
+        else if (!autometic){
+          switch(code){
+            case RED:
+              selected = 0;
+              blinkSelected(1, 1);
+              Serial.println("SELECTED RED:");
+              break;
+              
+            case GREEN:
+              selected = 1;
+              blinkSelected(1, 1);
+              Serial.println("SELECTED GREEN:");
+              break;
+      
+            case BLUE:
+              selected = 2;
+              blinkSelected(1, 1);
+              Serial.println("SELECTED BLUE:");
+              break;
+    
+            case FUNCTION:
+              autometic = true;
+              receivedCode = 0;
+              delay(100);   //to skip multiple button press;
+              break;
+      
+            case UP:
+             
+              Serial.print("Intensity : ");
+              bright[selected] += manualIntensitySteps;
+              if( bright[selected] > MAX_STEPS) {
+                 bright[selected] = MAX_STEPS;
+                 blinkSelected(3, 0);
+              }
+              Serial.println(bright[selected]);
+              analogWrite(RGB_PIN[selected], bright[selected]);
+              break;
+      
+             case DOWN:
+              Serial.print("Intensity : ");
+              bright[selected] -= manualIntensitySteps;
+              if( bright[selected] < MIN_STEPS) {
+                 bright[selected] = MIN_STEPS;
+                 blinkSelected(2, 0);
+              }
+              Serial.println(bright[selected]);
+              analogWrite(RGB_PIN[selected], bright[selected]);
+              break;
       }
     }
-
+  }
 }
 
 void transitionTo(int rgb[], int stepsMultiplier, int transitionDelay){
@@ -194,6 +242,7 @@ irrecv.enableIRIn();
   analogWrite(RGB_PIN[0], bright[0]);
   analogWrite(RGB_PIN[1], bright[1]);
   analogWrite(RGB_PIN[2], bright[2]);
+  
 
 }
 void loop()     
@@ -210,8 +259,14 @@ void loop()
     
     irrecv.resume();
   }
+  if(!powerOn){
+    transitionTo(POWEROFF_STATUS, 1, 30);
+    int idle[] ={0,0,0};
+    transitionTo(idle, 1, 30);
+    delay(1000);
+  }
   if(autometic){
     displayRandomColor();
   }
-delay(10);
+//delay(10);
 }  
